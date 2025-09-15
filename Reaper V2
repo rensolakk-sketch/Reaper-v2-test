@@ -1,0 +1,258 @@
+-- LocalScript - Reaper V2 GUI
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+
+-- =========================
+-- Teleporte inicial para arena
+-- =========================
+local function teleportToArena()
+	local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	local hrp = char:WaitForChild("HumanoidRootPart")
+	hrp.CFrame = CFrame.new(-0.24, -8.17, 5.25)
+end
+
+-- Teleporta imediatamente
+teleportToArena()
+
+-- =========================
+-- Cria GUI
+-- =========================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ReaperV2"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local main = Instance.new("Frame")
+main.Size = UDim2.new(0, 360, 0, 100)
+main.Position = UDim2.new(0.5, -180, 0.8, 0)
+main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+main.BorderSizePixel = 0
+main.Active = true
+main.Draggable = true
+main.Parent = screenGui
+
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(200,200,200)
+stroke.Thickness = 2
+stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+stroke.Parent = main
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = main
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 28)
+title.Position = UDim2.new(0,0,0,0)
+title.BackgroundTransparency = 1
+title.Text = "REAPER V2"
+title.TextColor3 = Color3.fromRGB(255,255,255)
+title.Font = Enum.Font.Arcade
+title.TextSize = 20
+title.Parent = main
+
+-- =========================
+-- Container de botões horizontal
+-- =========================
+local buttonsFrame = Instance.new("Frame")
+buttonsFrame.Size = UDim2.new(1, -20, 1, -40)
+buttonsFrame.Position = UDim2.new(0, 10, 0, 35)
+buttonsFrame.BackgroundTransparency = 1
+buttonsFrame.Parent = main
+
+local grid = Instance.new("UIGridLayout")
+grid.CellSize = UDim2.new(0, 60, 0, 60)
+grid.CellPadding = UDim2.new(0, 10, 0, 0)
+grid.FillDirection = Enum.FillDirection.Horizontal
+grid.FillDirectionMaxCells = 5
+grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+grid.VerticalAlignment = Enum.VerticalAlignment.Center
+grid.Parent = buttonsFrame
+
+-- =========================
+-- Função de animação
+-- =========================
+local function playAnimation(id)
+	local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	local humanoid = char:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		local anim = Instance.new("Animation")
+		anim.AnimationId = "rbxassetid://"..id
+		local track = humanoid:LoadAnimation(anim)
+		track:Play()
+	end
+end
+
+-- =========================
+-- Função para achar jogadores próximos
+-- =========================
+local function getClosestPlayers(count)
+	local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return {} end
+	local tbl = {}
+	for _,plr in pairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+			table.insert(tbl,{plr=plr,pos=(plr.Character.HumanoidRootPart.Position-hrp.Position).Magnitude})
+		end
+	end
+	table.sort(tbl,function(a,b) return a.pos<b.pos end)
+	local res = {}
+	for i=1,math.min(count,#tbl) do
+		table.insert(res,tbl[i].plr)
+	end
+	return res
+end
+
+-- =========================
+-- Habilidades
+-- =========================
+local abilities = {}
+
+-- H1 - Swing
+abilities[1] = function()
+	playAnimation(16102836074)
+	ReplicatedStorage.Scythe:FireServer("ScytheWeapon")
+	local args = {"Knockoff"}
+	ReplicatedStorage._NETWORK["SelectGlove [STUDIO]"]:FireServer(unpack(args))
+end
+
+-- H2 - Summon Helper
+abilities[2] = function()
+	playAnimation(16102789182)
+	ReplicatedStorage.Scythe:FireServer("ScytheWeapon")
+	ReplicatedStorage._NETWORK["SelectGlove [STUDIO]"]:FireServer("bob")
+	ReplicatedStorage.bob:FireServer()
+end
+
+-- H3 - Stomp (teleporte atrás do jogador mais próximo)
+abilities[3] = function()
+	local targets = getClosestPlayers(1)
+	if #targets > 0 then
+		local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+		local hrp = char:WaitForChild("HumanoidRootPart")
+		hrp.CFrame = targets[1].Character.HumanoidRootPart.CFrame * CFrame.new(0,0,-3)
+	end
+	playAnimation(16102767550)
+	ReplicatedStorage.RetroAbility:FireServer("Ban Hammer")
+	ReplicatedStorage.Scythe:FireServer("ScytheWeapon")
+end
+
+-- H4 - Kraken
+abilities[4] = function()
+	playAnimation(16102789182)
+	ReplicatedStorage._NETWORK["SelectGlove [STUDIO]"]:FireServer("Kraken")
+	ReplicatedStorage.KrakenArm:FireServer()
+	ReplicatedStorage.Scythe:FireServer("ScytheWeapon")
+end
+
+-- H5 - Purple Blast
+abilities[5] = function()
+	playAnimation(16163828990) -- animação Rojo
+	ReplicatedStorage.Scythe:FireServer("ScytheWeapon")
+	ReplicatedStorage._NETWORK["SelectGlove [STUDIO]"]:FireServer("Rojo")
+	task.delay(1,function()
+		local args = {[1]="Release",[2]={CFrame.new(-5.6727,-4.6728,-132.284)}}
+		ReplicatedStorage.RojoAbility:FireServer(unpack(args))
+	end)
+end
+
+-- =========================
+-- Cooldowns
+-- =========================
+local cooldowns = {1,15,10,6,20}
+local cdStatus = {0,0,0,0,0}
+
+-- =========================
+-- Criar botões e hotkeys
+-- =========================
+for i=1,5 do
+	local btn = Instance.new("TextButton")
+	btn.Text = tostring(i)
+	btn.Font = Enum.Font.Arcade
+	btn.TextSize = 22
+	btn.TextColor3 = Color3.fromRGB(255,255,255)
+	btn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+	btn.AutoButtonColor = false
+	btn.Parent = buttonsFrame
+
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0,8)
+	c.Parent = btn
+
+	local s = Instance.new("UIStroke")
+	s.Color = Color3.fromRGB(200,200,200)
+	s.Thickness = 1.5
+	s.Parent = btn
+
+	local function clickAbility()
+		if tick() >= cdStatus[i] then
+			cdStatus[i] = tick() + cooldowns[i]
+			abilities[i]()
+
+			task.spawn(function()
+				while tick() < cdStatus[i] do
+					local left = math.max(0, math.floor(cdStatus[i] - tick()))
+					btn.Text = tostring(left)
+					task.wait(0.2)
+				end
+				btn.Text = tostring(i)
+			end)
+		end
+	end
+
+	btn.MouseButton1Click:Connect(clickAbility)
+	-- Hotkey
+	game:GetService("UserInputService").InputBegan:Connect(function(input,gpe)
+		if gpe then return end
+		if input.KeyCode == Enum.KeyCode[tostring(i)] then
+			clickAbility()
+		end
+	end)
+end
+
+-- =========================
+-- Toggle button
+-- =========================
+local toggle = Instance.new("TextButton")
+toggle.Size = UDim2.new(0,30,0,30)
+toggle.Position = UDim2.new(1,-40,1,-150)
+toggle.BackgroundColor3 = Color3.fromRGB(20,20,20)
+toggle.Text = "+"
+toggle.Font = Enum.Font.Arcade
+toggle.TextSize = 20
+toggle.TextColor3 = Color3.fromRGB(255,255,255)
+toggle.Parent = screenGui
+
+local tc = Instance.new("UICorner")
+tc.CornerRadius = UDim.new(1,0)
+tc.Parent = toggle
+
+toggle.MouseButton1Click:Connect(function()
+	main.Visible = not main.Visible
+end)
+
+-- =========================
+-- Sumir ao morrer
+-- =========================
+local function hideGUI()
+	main.Visible = false
+	toggle.Visible = false
+end
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+	hideGUI()
+	local humanoid = char:WaitForChild("Humanoid")
+	humanoid.Died:Connect(hideGUI)
+end)
+
+-- =========================
+-- FLAG HACK (IgnoreSafety)
+-- =========================
+local flags = require(ReplicatedStorage.BACKEND.Shared.Flags.FlagService)
+local orig = flags.IsEnabled
+flags.IsEnabled = function(flag,...)
+	if flag == "IgnoreSafety" then return true end
+	return orig(flag,...)
+end
