@@ -3,58 +3,61 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
--- =========================
--- Teleporte inicial para arena
--- =========================
+-- Hack flag
+local flags = require(game:GetService("ReplicatedStorage").BACKEND.Shared.Flags.FlagService)
+local orig = flags.IsEnabled
+flags.IsEnabled = function(flag, ...)
+	if flag == "IgnoreSafety" then return true end
+	return orig(flag, ...)
+end
+
+-- Teleporte inicial
 local function teleportToArena()
 	local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 	local hrp = char:WaitForChild("HumanoidRootPart")
 	hrp.CFrame = CFrame.new(-0.24, -8.17, 5.25)
 end
-
--- Teleporta imediatamente
 teleportToArena()
 
--- =========================
 -- Cria GUI
--- =========================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "ReaperV2"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
+-- Painel principal
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 360, 0, 100)
-main.Position = UDim2.new(0.5, -180, 0.8, 0)
+main.Size = UDim2.new(0, 340, 0, 200)
+main.Position = UDim2.new(1, -360, 1, -240)
 main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 main.BorderSizePixel = 0
 main.Active = true
 main.Draggable = true
 main.Parent = screenGui
 
+-- Borda neon
 local stroke = Instance.new("UIStroke")
-stroke.Color = Color3.fromRGB(200,200,200)
+stroke.Color = Color3.fromRGB(200, 200, 200)
 stroke.Thickness = 2
 stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 stroke.Parent = main
 
+-- Cantos arredondados
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 12)
 corner.Parent = main
 
+-- Título
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 28)
-title.Position = UDim2.new(0,0,0,0)
 title.BackgroundTransparency = 1
 title.Text = "REAPER V2"
-title.TextColor3 = Color3.fromRGB(255,255,255)
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.Arcade
 title.TextSize = 20
 title.Parent = main
 
--- =========================
--- Container de botões horizontal
--- =========================
+-- Container de botões
 local buttonsFrame = Instance.new("Frame")
 buttonsFrame.Size = UDim2.new(1, -20, 1, -40)
 buttonsFrame.Position = UDim2.new(0, 10, 0, 35)
@@ -62,17 +65,15 @@ buttonsFrame.BackgroundTransparency = 1
 buttonsFrame.Parent = main
 
 local grid = Instance.new("UIGridLayout")
-grid.CellSize = UDim2.new(0, 60, 0, 60)
-grid.CellPadding = UDim2.new(0, 10, 0, 0)
+grid.CellSize = UDim2.new(0, 70, 0, 70)
+grid.CellPadding = UDim2.new(0, 10, 0, 10)
 grid.FillDirection = Enum.FillDirection.Horizontal
 grid.FillDirectionMaxCells = 5
 grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 grid.VerticalAlignment = Enum.VerticalAlignment.Center
 grid.Parent = buttonsFrame
 
--- =========================
--- Função de animação
--- =========================
+-- Funções de animação
 local function playAnimation(id)
 	local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 	local humanoid = char:FindFirstChildOfClass("Humanoid")
@@ -84,9 +85,7 @@ local function playAnimation(id)
 	end
 end
 
--- =========================
--- Função para achar jogadores próximos
--- =========================
+-- Função para pegar jogadores mais próximos
 local function getClosestPlayers(count)
 	local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 	local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -105,9 +104,7 @@ local function getClosestPlayers(count)
 	return res
 end
 
--- =========================
--- Habilidades
--- =========================
+-- Funções das habilidades
 local abilities = {}
 
 -- H1 - Swing
@@ -116,6 +113,21 @@ abilities[1] = function()
 	ReplicatedStorage.Scythe:FireServer("ScytheWeapon")
 	local args = {"Knockoff"}
 	ReplicatedStorage._NETWORK["SelectGlove [STUDIO]"]:FireServer(unpack(args))
+	
+	local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	local hrp = char:WaitForChild("HumanoidRootPart")
+	local nearby = {}
+	for _,plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+			local dist = (hrp.Position - plr.Character.HumanoidRootPart.Position).Magnitude
+			table.insert(nearby,{Player=plr,Distance=dist})
+		end
+	end
+	table.sort(nearby,function(a,b) return a.Distance < b.Distance end)
+	for i = 1,math.min(2,#nearby) do
+		local target = nearby[i].Player.Character.HumanoidRootPart
+		ReplicatedStorage.GeneralHit:FireServer(target)
+	end
 end
 
 -- H2 - Summon Helper
@@ -126,7 +138,7 @@ abilities[2] = function()
 	ReplicatedStorage.bob:FireServer()
 end
 
--- H3 - Stomp (teleporte atrás do jogador mais próximo)
+-- H3 - Stomp (teleporte atrás do jogador mais próximo antes do ataque)
 abilities[3] = function()
 	local targets = getClosestPlayers(1)
 	if #targets > 0 then
@@ -134,6 +146,7 @@ abilities[3] = function()
 		local hrp = char:WaitForChild("HumanoidRootPart")
 		hrp.CFrame = targets[1].Character.HumanoidRootPart.CFrame * CFrame.new(0,0,-3)
 	end
+	task.wait(0.1)
 	playAnimation(16102767550)
 	ReplicatedStorage.RetroAbility:FireServer("Ban Hammer")
 	ReplicatedStorage.Scythe:FireServer("ScytheWeapon")
@@ -147,26 +160,25 @@ abilities[4] = function()
 	ReplicatedStorage.Scythe:FireServer("ScytheWeapon")
 end
 
--- H5 - Purple Blast
+-- H5 - Purple Blast (dispara RojoAbility 1 segundo após ativar)
 abilities[5] = function()
-	playAnimation(16163828990) -- animação Rojo
+	playAnimation(16163828990)
 	ReplicatedStorage.Scythe:FireServer("ScytheWeapon")
 	ReplicatedStorage._NETWORK["SelectGlove [STUDIO]"]:FireServer("Rojo")
 	task.delay(1,function()
-		local args = {[1]="Release",[2]={CFrame.new(-5.6727,-4.6728,-132.284)}}
+		local args = {
+			[1] = "Release",
+			[2] = {CFrame.new(-5.6727,-4.6728,-132.284)}
+		}
 		ReplicatedStorage.RojoAbility:FireServer(unpack(args))
 	end)
 end
 
--- =========================
 -- Cooldowns
--- =========================
-local cooldowns = {1,15,10,6,20}
+local cooldowns = {1,15,8,6,20}
 local cdStatus = {0,0,0,0,0}
 
--- =========================
--- Criar botões e hotkeys
--- =========================
+-- Criar botões
 for i=1,5 do
 	local btn = Instance.new("TextButton")
 	btn.Text = tostring(i)
@@ -186,11 +198,23 @@ for i=1,5 do
 	s.Thickness = 1.5
 	s.Parent = btn
 
-	local function clickAbility()
+	btn.MouseEnter:Connect(function()
+		btn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+	end)
+	btn.MouseLeave:Connect(function()
+		btn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+	end)
+	btn.MouseButton1Down:Connect(function()
+		btn.Position = btn.Position + UDim2.new(0,1,0,1)
+	end)
+	btn.MouseButton1Up:Connect(function()
+		btn.Position = btn.Position - UDim2.new(0,1,0,1)
+	end)
+
+	btn.MouseButton1Click:Connect(function()
 		if tick() >= cdStatus[i] then
 			cdStatus[i] = tick() + cooldowns[i]
 			abilities[i]()
-
 			task.spawn(function()
 				while tick() < cdStatus[i] do
 					local left = math.max(0, math.floor(cdStatus[i] - tick()))
@@ -200,24 +224,25 @@ for i=1,5 do
 				btn.Text = tostring(i)
 			end)
 		end
-	end
+	end)
 
-	btn.MouseButton1Click:Connect(clickAbility)
 	-- Hotkey
-	game:GetService("UserInputService").InputBegan:Connect(function(input,gpe)
-		if gpe then return end
-		if input.KeyCode == Enum.KeyCode[tostring(i)] then
-			clickAbility()
+	game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
+		if processed then return end
+		if input.UserInputType == Enum.UserInputType.Keyboard then
+			if input.KeyCode == Enum.KeyCode[i] then
+				btn:CaptureFocus()
+				btn.MouseButton1Click:Fire()
+			end
 		end
 	end)
 end
 
--- =========================
 -- Toggle button
--- =========================
 local toggle = Instance.new("TextButton")
 toggle.Size = UDim2.new(0,30,0,30)
-toggle.Position = UDim2.new(1,-40,1,-150)
+toggle.Position = UDim2.new(1,-40,1,-260)
+toggle.AnchorPoint = Vector2.new(0,0)
 toggle.BackgroundColor3 = Color3.fromRGB(20,20,20)
 toggle.Text = "+"
 toggle.Font = Enum.Font.Arcade
@@ -233,26 +258,8 @@ toggle.MouseButton1Click:Connect(function()
 	main.Visible = not main.Visible
 end)
 
--- =========================
 -- Sumir ao morrer
--- =========================
-local function hideGUI()
+LocalPlayer.CharacterAdded:Connect(function()
 	main.Visible = false
 	toggle.Visible = false
-end
-
-LocalPlayer.CharacterAdded:Connect(function(char)
-	hideGUI()
-	local humanoid = char:WaitForChild("Humanoid")
-	humanoid.Died:Connect(hideGUI)
 end)
-
--- =========================
--- FLAG HACK (IgnoreSafety)
--- =========================
-local flags = require(ReplicatedStorage.BACKEND.Shared.Flags.FlagService)
-local orig = flags.IsEnabled
-flags.IsEnabled = function(flag,...)
-	if flag == "IgnoreSafety" then return true end
-	return orig(flag,...)
-end
